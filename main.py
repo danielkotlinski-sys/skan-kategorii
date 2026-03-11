@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 Sprint Brandos — Skan Kategorii
 Automatyczna analiza konwencji kategorii (kroki 1–4 karty pracy prework).
