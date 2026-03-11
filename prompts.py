@@ -194,3 +194,95 @@ Czy to napięcie da się rozwiązać, czy jest strukturalne? 3-4 zdania."
 
 Odpowiedz WYŁĄCZNIE JSONem. Bądź odkrywczy i konkretny — unikaj ogólników.\
 """
+
+
+PROMPT_BRAND_VS_CATEGORY = """\
+Jesteś strategiem marki. Masz dwa zestawy danych:
+1. Analizę konwencji kategorii "{category}"
+2. Analizę marki własnej użytkownika
+
+Twoje zadanie: ocenić strategicznie, na ile ta marka wpisuje się w konwencję kategorii,
+a na ile się z niej wyłamuje — i co to oznacza dla jej pozycji.
+
+KONWENCJA KATEGORII:
+
+Dominująca definicja wartości:
+{dominujaca_def}
+
+Trzy główne konwencje:
+{konwencje_text}
+
+Skrypt kategorii — zdania pasujące do typowej firmy:
+„{skrypt}"
+
+Tabu kategorii:
+{tabu_text}
+
+---
+
+ANALIZA MARKI: {brand_url}
+
+Dominująca obietnica: {obietnica}
+Słowa klucze: {slowa}
+Do kogo mówi: {do_kogo}
+Jak uzasadnia wartość: {uzasadnienie}
+Co przemilcza: {przemilczenia}
+Co byłoby frustrujące dla klienta: {frustracje}
+
+---
+
+INSTRUKCJA:
+
+Bądź konkretny i odkrywczy. Unikaj ogólników w stylu "marka jest podobna do konkurentów".
+Wskaż KTÓRE elementy są konwencjonalne i CO to znaczy strategicznie.
+
+Szczególnie szukaj:
+— Czy marka robi coś niekonwencjonalnego, ale sama tego nie komunikuje jako wyróżnik?
+  (To jest "uśpiony wyróżnik" — coś, co już istnieje, ale czeka na wydobycie.)
+— Gdzie marka milczy inaczej niż kategoria — lub milczy dokładnie tak samo?
+— Czy skrypt kategorii pasuje do tej marki? W których słowach się zacina?
+
+---
+
+Wypełnij w JSON:
+
+{{
+  "wskaznik_konwencjonalnosci": "Krótka ocena ogólna: np. '~80% konwencjonalna' lub \
+'wyraźnie niekonwencjonalna w jednym wymiarze'. 1-2 zdania wyjaśnienia.",
+
+  "ocena_per_konwencja": [
+    {{
+      "konwencja": "dokładna nazwa konwencji #1",
+      "ocena": "wpisuje się / wyłamuje się / pośrednie",
+      "jak": "Co konkretnie marka robi tak samo lub inaczej niż cała kategoria? \
+Jeśli wpisuje się — dlaczego to jest problemem? Jeśli wyłamuje się — czy to świadome? (2-3 zdania)"
+    }},
+    {{
+      "konwencja": "konwencja #2",
+      "ocena": "wpisuje się / wyłamuje się / pośrednie",
+      "jak": "..."
+    }},
+    {{
+      "konwencja": "konwencja #3",
+      "ocena": "wpisuje się / wyłamuje się / pośrednie",
+      "jak": "..."
+    }}
+  ],
+
+  "gdzie_sie_wylamuje": "Gdzie i w jaki sposób ta marka odchodzi od konwencji kategorii — \
+nawet subtelnie lub przypadkowo? Jeśli nigdzie — napisz to wprost i dlaczego to jest \
+ryzykowne. (2-3 zdania)",
+
+  "uspiiony_wyroznik": "Czy marka robi coś niekonwencjonalnego, czego sama nie \
+eksponuje jako wyróżnik — coś, co już tam jest, ale nie jest komunikowane? \
+Jeśli tak — co to jest i dlaczego warto to wydobyć? \
+Jeśli nie — 'Brak wyraźnych uśpionych wyróżników.' (2-3 zdania)",
+
+  "rekomendacja": "Gdzie jest największa szansa na zbudowanie wyraźnej różnicy \
+od konwencji przy zachowaniu wiarygodności tej marki? \
+Wskaż konkretny kierunek — nie tylko 'możesz się wyróżnić', ale W CZYM i DLACZEGO \
+akurat ta marka ma do tego prawo. (3-4 zdania)"
+}}
+
+Odpowiedz WYŁĄCZNIE JSONem.\
+"""

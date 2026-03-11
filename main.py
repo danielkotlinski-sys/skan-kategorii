@@ -30,6 +30,7 @@ from prompts import (
     PROMPT_ANALYZE_SMALL_COMPETITOR,
     PROMPT_SYNTHESIZE_CATEGORY,
     PROMPT_CLIENT_PROFILE,
+    PROMPT_BRAND_VS_CATEGORY,
 )
 
 MODEL = "claude-sonnet-4-6"
@@ -171,6 +172,37 @@ def build_client_profile(
         klient_wykluczony=synthesis.get("klient_wykluczony", ""),
     )
     return ask_claude(client, prompt, max_tokens=1800)
+
+
+def analyze_brand_vs_category(
+    brand_url: str,
+    brand_analysis: dict,
+    category: str,
+    synthesis: dict,
+    client: anthropic.Anthropic,
+) -> dict:
+    """Porównaj markę własną użytkownika z konwencjami kategorii."""
+    konwencje_lines = []
+    for k in synthesis.get("konwencje", []):
+        konwencje_lines.append(
+            f"• {k.get('nazwa','')}: {k.get('co_wszyscy_robia','')}"
+        )
+
+    prompt = PROMPT_BRAND_VS_CATEGORY.format(
+        category=category,
+        brand_url=brand_url,
+        dominujaca_def=synthesis.get("dominujaca_definicja_wartosci", ""),
+        konwencje_text="\n".join(konwencje_lines),
+        skrypt=synthesis.get("skrypt_kategorii", ""),
+        tabu_text="\n".join(f"• {t}" for t in synthesis.get("tabu_kategorii", [])),
+        obietnica=brand_analysis.get("dominujaca_obietnica", ""),
+        slowa=", ".join(brand_analysis.get("slowa_klucze", [])),
+        do_kogo=brand_analysis.get("do_kogo_mowia", ""),
+        uzasadnienie=brand_analysis.get("jak_uzasadniaja_wartosc", ""),
+        przemilczenia=brand_analysis.get("co_przemilczaja", ""),
+        frustracje=brand_analysis.get("co_frustrujacego", ""),
+    )
+    return ask_claude(client, prompt, max_tokens=2000)
 
 
 # ─── Raport ─────────────────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ from main import (
     analyze_small_competitor,
     synthesize,
     build_client_profile,
+    analyze_brand_vs_category,
     render_report,
     normalize_url,
 )
@@ -161,6 +162,12 @@ with st.form("analysis_form"):
         placeholder="https://firma1.pl\nhttps://firma2.pl\nhttps://firma3.pl\nhttps://firma4.pl\nhttps://firma5.pl",
     )
 
+    own_brand_url = st.text_input(
+        "Twoja marka — URL (opcjonalnie)",
+        placeholder="https://twoja-firma.pl",
+        help="Podaj adres swojej strony, a otrzymasz dodatkową analizę: jak Twoja marka wypada na tle konwencji kategorii.",
+    )
+
     small_urls_text = st.text_area(
         "Mniejsze / niszowe firmy — opcjonalnie (do 10, jeden na linię)",
         height=90,
@@ -201,6 +208,7 @@ with st.form("analysis_form"):
 if submitted:
     main_urls = [normalize_url(u) for u in main_urls_text.strip().splitlines() if u.strip()]
     small_urls = [normalize_url(u) for u in small_urls_text.strip().splitlines() if u.strip()]
+    own_brand = normalize_url(own_brand_url) if own_brand_url.strip() else ""
     api_key = api_key_input.strip()
 
     # Walidacja
@@ -217,12 +225,15 @@ if submitted:
 
     if not errors:
         client = anthropic.Anthropic(api_key=api_key)
-        total = len(main_urls) + len(small_urls) + 2
+        extra = 2 if own_brand else 0  # analiza marki własnej + brand vs category
+        total = len(main_urls) + len(small_urls) + 2 + extra
         step = 0
 
         progress = st.progress(0, text="Startuję...")
         main_results = []
         small_results = []
+        own_brand_analysis = {}
+        brand_comparison = {}
 
         with st.status("Analizuję kategorię...", expanded=True) as status:
 
@@ -280,6 +291,33 @@ if submitted:
             if "_raw" in profile:
                 st.error("⚠ Profil klienta (Krok 4) zwrócił nieoczekiwany format. Spróbuj ponownie.")
                 profile = {}
+            step += 1
+            progress.progress(step / total, text="Krok 4 · profil klienta")
+
+            # ── Twoja marka ──────────────────────────────────────────────────
+            if own_brand and synthesis:
+                st.write(f"**Twoja marka** — analizuję `{own_brand}`...")
+                try:
+                    own_brand_analysis = analyze_main_competitor(own_brand, category, client)
+                except Exception as exc:
+                    st.warning(f"Błąd analizy marki własnej: {exc}")
+                    own_brand_analysis = {}
+                step += 1
+                progress.progress(step / total, text="Twoja marka · scraping + analiza")
+
+                st.write("**Twoja marka na tle kategorii** — porównuję z konwencjami...")
+                try:
+                    brand_comparison = analyze_brand_vs_category(
+                        own_brand, own_brand_analysis, category, synthesis, client
+                    )
+                except Exception as exc:
+                    st.warning(f"Błąd porównania marki: {exc}")
+                    brand_comparison = {}
+                if "_raw" in brand_comparison:
+                    st.error("⚠ Porównanie marki zwróciło nieoczekiwany format. Spróbuj ponownie.")
+                    brand_comparison = {}
+                step += 1
+
             progress.progress(1.0, text="Gotowe!")
             status.update(label="✓ Analiza zakończona", state="complete", expanded=False)
 
@@ -291,6 +329,9 @@ if submitted:
             "small_results": small_results,
             "synthesis": synthesis,
             "profile": profile,
+            "own_brand": own_brand,
+            "own_brand_analysis": own_brand_analysis,
+            "brand_comparison": brand_comparison,
             "report": render_report(
                 category, market, main_results, small_results, synthesis, profile
             ),
@@ -308,6 +349,9 @@ if "results" in st.session_state:
     small_results = r["small_results"]
     report_md = r["report"]
     category = r["category"]
+    own_brand = r.get("own_brand", "")
+    own_brand_analysis = r.get("own_brand_analysis", {})
+    brand_comparison = r.get("brand_comparison", {})
 
     st.divider()
     st.markdown(f"## Wyniki · {category}")
@@ -410,6 +454,68 @@ if "results" in st.session_state:
             f'{profile["napiecie_strategiczne"]}</div>',
             unsafe_allow_html=True,
         )
+
+    # ── Twoja marka na tle kategorii ─────────────────────────────────────────
+    if own_brand and brand_comparison:
+        st.divider()
+        st.markdown(
+            f'<div style="background:#0f172a;color:white;border-radius:14px;'
+            f'padding:1.4rem 1.6rem;margin-bottom:1.2rem;">'
+            f'<div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;'
+            f'color:#94a3b8;margin-bottom:0.3rem;">Benchmarking</div>'
+            f'<div style="font-size:1.25rem;font-weight:700;">Twoja marka na tle kategorii</div>'
+            f'<div style="color:#94a3b8;font-size:0.9rem;margin-top:0.2rem;">`{own_brand}`</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Wskaźnik konwencjonalności
+        if brand_comparison.get("wskaznik_konwencjonalnosci"):
+            st.markdown(
+                '<div class="profile-block">'
+                '<div class="label">Ogólna ocena</div>'
+                f'{brand_comparison["wskaznik_konwencjonalnosci"]}</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Ocena per konwencja
+        ocena_list = brand_comparison.get("ocena_per_konwencja", [])
+        if ocena_list:
+            st.markdown("#### Ocena per konwencja")
+            icons = {"wpisuje się": "🔴", "wyłamuje się": "🟢", "pośrednie": "🟡"}
+            for item in ocena_list:
+                ocena = item.get("ocena", "")
+                icon = icons.get(ocena, "⚪")
+                with st.expander(f"{icon} **{item.get('konwencja','')}** — {ocena}"):
+                    st.write(item.get("jak", ""))
+
+        # Gdzie się wyłamuje + uśpiony wyróżnik
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if brand_comparison.get("gdzie_sie_wylamuje"):
+                st.markdown(
+                    '<div class="profile-block">'
+                    '<div class="label">Gdzie się wyłamuje z konwencji</div>'
+                    f'{brand_comparison["gdzie_sie_wylamuje"]}</div>',
+                    unsafe_allow_html=True,
+                )
+        with col_b:
+            if brand_comparison.get("uspiiony_wyroznik"):
+                st.markdown(
+                    '<div class="profile-block" style="border-left:3px solid #f59e0b;">'
+                    '<div class="label" style="color:#d97706;">Uśpiony wyróżnik</div>'
+                    f'{brand_comparison["uspiiony_wyroznik"]}</div>',
+                    unsafe_allow_html=True,
+                )
+
+        # Rekomendacja — wyróżniona
+        if brand_comparison.get("rekomendacja"):
+            st.markdown(
+                '<div class="tension-block" style="background:linear-gradient(135deg,#064e3b,#065f46);">'
+                '<div class="label">Rekomendacja strategiczna</div>'
+                f'{brand_comparison["rekomendacja"]}</div>',
+                unsafe_allow_html=True,
+            )
 
     st.divider()
 
